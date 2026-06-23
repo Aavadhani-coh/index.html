@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DECS KB Lifecycle Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: #F0F3F3; color: #080808; font-size: 14px; }
+
+  .header { background: #00DD68; padding: 18px 24px 14px; }
+  .header h1 { font-size: 17px; font-weight: 700; color: #080808; }
+  .header p { font-size: 12px; color: #00552e; margin-top: 4px; }
+
+  .summary-row { display: flex; gap: 24px; padding: 10px 24px; background: #fff; border-bottom: 1px solid #dde4e4; flex-wrap: wrap; }
+  .summary-item { font-size: 12px; color: #444; cursor: pointer; padding: 4px 0; border-bottom: 2px solid transparent; }
+  .summary-item:hover { color: #080808; }
+  .summary-item.active-filter { border-bottom-color: #00DD68; color: #080808; font-weight: 600; }
+  .summary-item .count { font-weight: 700; margin-right: 4px; }
+  .summary-item.s-critical .count { color: #b91c1c; }
+  .summary-item.s-update .count   { color: #E84C00; }
+  .summary-item.s-review .count   { color: #b45309; }
+  .summary-item.s-retire .count   { color: #FC0080; }
+  .summary-item.s-active .count   { color: #00774C; }
+
+  .controls { display: flex; gap: 8px; padding: 10px 24px; background: #fff; border-bottom: 1px solid #dde4e4; align-items: center; }
+  .search-box { flex: 1; max-width: 280px; padding: 6px 10px; border: 1px solid #c8d0d0; border-radius: 4px; font-size: 13px; background: #fff; }
+  .search-box:focus { outline: none; border-color: #00774C; }
+  .filter-btn { padding: 5px 12px; border: 1px solid #c8d0d0; border-radius: 4px; background: #fff; font-size: 12px; cursor: pointer; color: #333; }
+  .filter-btn:hover { border-color: #00774C; color: #00774C; }
+  .filter-btn.active { background: #00DD68; color: #080808; border-color: #00DD68; font-weight: 600; }
+  .clear-btn { padding: 5px 12px; border: 1px solid transparent; border-radius: 4px; background: none; font-size: 12px; cursor: pointer; color: #888; }
+  .clear-btn:hover { color: #333; }
+
+  /* Add article panel */
+  .analyze-bar { display: flex; gap: 8px; padding: 10px 24px; background: #f7fdf9; border-bottom: 1px solid #b8ead0; align-items: center; flex-wrap: wrap; }
+  .analyze-label { font-size: 12px; font-weight: 600; color: #00774C; white-space: nowrap; }
+  .analyze-input { flex: 1; min-width: 180px; max-width: 300px; padding: 6px 10px; border: 1px solid #b8ead0; border-radius: 4px; font-size: 13px; background: #fff; }
+  .analyze-input:focus { outline: none; border-color: #00774C; }
+  .analyze-select { padding: 6px 8px; border: 1px solid #b8ead0; border-radius: 4px; font-size: 13px; background: #fff; color: #333; }
+  .analyze-select:focus { outline: none; border-color: #00774C; }
+  .analyze-date { padding: 6px 8px; border: 1px solid #b8ead0; border-radius: 4px; font-size: 13px; background: #fff; color: #333; }
+  .analyze-date:focus { outline: none; border-color: #00774C; }
+  .analyze-btn { padding: 6px 14px; border: none; border-radius: 4px; background: #00774C; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .analyze-btn:hover { background: #005e3c; }
+
+  .analyze-result { margin: 0 24px 0; background: #fff; border: 1px solid #b8ead0; border-radius: 4px; padding: 12px 16px; flex-wrap: wrap; }
+  .status-select { padding: 4px 8px; border: 1px solid #c8d0d0; border-radius: 4px; font-size: 12px; color: #333; background: #fff; cursor: pointer; }
+  .status-select:focus { outline: none; border-color: #00774C; }
+  .add-btn { padding: 5px 12px; background: #00DD68; border: none; border-radius: 4px; font-size: 12px; font-weight: 600; color: #080808; cursor: pointer; }
+  .add-btn:hover { background: #00c45d; }
+  .dismiss-btn { padding: 5px 10px; background: none; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; color: #666; cursor: pointer; }
+  .dismiss-btn:hover { border-color: #888; color: #333; }
+
+  tr.new-row td { background: #f0fdf6; }
+  tr.new-row td:first-child { border-left: 3px solid #00DD68; }
+
+  .table-wrap { padding: 12px 24px 24px; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 4px; overflow: hidden; }
+  thead th { background: #00774C; border-bottom: none; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; cursor: pointer; user-select: none; white-space: nowrap; color: #fff; }
+  thead th:hover { background: #005e3c; }
+  thead th .sort-icon { margin-left: 3px; opacity: .4; }
+  tbody tr { border-bottom: 1px solid #eef2f2; }
+  tbody tr:hover { background: #e8f9f1; }
+  tbody tr:last-child { border-bottom: none; }
+  td { padding: 8px 10px; font-size: 12.5px; vertical-align: middle; }
+  .article-name { font-weight: 500; color: #080808; max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .refs-num { font-size: 12px; color: #333; }
+
+  .status-tag { font-size: 11px; font-weight: 600; }
+  .status-critical { color: #b91c1c; }
+  .status-update   { color: #E84C00; }
+  .status-active   { color: #00774C; }
+  .status-review   { color: #b45309; }
+  .status-retire   { color: #FC0080; }
+  .status-monitor  { color: #666; }
+  .status-draft    { color: #0369a1; }
+
+  .folder-tag { font-size: 11px; color: #555; }
+  .age-text { font-size: 11px; color: #888; }
+  .age-text.old  { color: #b91c1c; }
+  .age-text.warn { color: #E84C00; }
+
+  .gaps-section { margin: 0 24px 24px; background: #fff; padding: 14px 16px; border-radius: 4px; border-left: 3px solid #00DD68; }
+  .gaps-section h3 { font-size: 11px; font-weight: 700; color: #00774C; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 10px; }
+  .gap-item { display: flex; align-items: baseline; gap: 10px; padding: 5px 0; border-bottom: 1px solid #f0f3f3; }
+  .gap-item:last-child { border-bottom: none; }
+  .gap-text { font-size: 12.5px; color: #080808; }
+  .gap-count { margin-left: auto; font-size: 11px; color: #888; white-space: nowrap; }
+
+  .hidden { display: none; }
+  .no-results { text-align: center; padding: 32px; color: #888; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>DECS Knowledge Library — Lifecycle Dashboard</h1>
+  <p id="headerSub">50 SharePoint articles · 12,126 Ask IT bot conversations analyzed · Updated June 10, 2026</p>
+</div>
+
+<div class="summary-row">
+  <div class="summary-item s-critical" onclick="filterByStatus('critical')" id="card-critical"><span class="count">1</span>Critical</div>
+  <div class="summary-item s-update" onclick="filterByStatus('update')" id="card-update"><span class="count">5</span>Update needed</div>
+  <div class="summary-item s-review" onclick="filterByStatus('review')" id="card-review"><span class="count">2</span>Review needed</div>
+  <div class="summary-item s-retire" onclick="filterByStatus('retire')" id="card-retire"><span class="count">4</span>Retire candidates</div>
+  <div class="summary-item s-active" onclick="filterByStatus('active')" id="card-active"><span class="count">8</span>Active</div>
+</div>
+
+<div class="controls">
+  <input class="search-box" type="text" id="searchInput" placeholder="Search articles..." oninput="applyFilters()">
+  <button class="filter-btn" onclick="filterByFolder('Published')" id="btn-published">Published</button>
+  <button class="filter-btn" onclick="filterByFolder('Drafts')" id="btn-drafts">Drafts</button>
+  <button class="filter-btn" onclick="filterByFolder('IT Support Documentation')" id="btn-support">IT Support Docs</button>
+  <button class="clear-btn" onclick="clearFilters()">Clear</button>
+</div>
+
+<!-- Add article panel -->
+<div class="analyze-bar">
+  <span class="analyze-label">Add article</span>
+  <input class="analyze-input" type="text" id="addName" placeholder="Article name…">
+  <select class="analyze-select" id="addFolder">
+    <option value="Published">Published</option>
+    <option value="Drafts">Drafts</option>
+    <option value="IT Support Documentation">IT Support Docs</option>
+    <option value="IT Support">IT Support</option>
+  </select>
+  <input class="analyze-date" type="date" id="addDate">
+  <button class="analyze-btn" onclick="addArticle()">Add</button>
+</div>
+<div class="analyze-result hidden" id="analyzeResult" style="margin-top:0;margin-bottom:0;">
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <span style="font-size:13px;font-weight:600;" id="arName"></span>
+    <span style="font-size:11px;color:#666;" id="arMeta"></span>
+    <span style="font-size:11px;color:#555;">Suggested status:</span>
+    <select class="status-select" id="arStatusSelect">
+      <option value="critical">Critical</option>
+      <option value="update">Update</option>
+      <option value="active">Active</option>
+      <option value="review">Review</option>
+      <option value="retire">Retire</option>
+      <option value="monitor">Monitor</option>
+      <option value="draft">Draft</option>
+    </select>
+    <span style="font-size:11px;color:#888;font-style:italic;" id="arReason"></span>
+    <button class="add-btn" onclick="confirmAdd()">Add to table</button>
+    <button class="dismiss-btn" onclick="dismissResult()">Dismiss</button>
+  </div>
+</div>
+
+<div class="table-wrap" style="margin-top:12px;">
+  <table id="articlesTable">
+    <thead>
+      <tr>
+        <th onclick="sortTable(0)">Article <span class="sort-icon">↕</span></th>
+        <th onclick="sortTable(1)">Folder <span class="sort-icon">↕</span></th>
+        <th onclick="sortTable(2)" style="width:80px">Bot Refs <span class="sort-icon">↕</span></th>
+        <th onclick="sortTable(3)" style="width:110px">Last Updated <span class="sort-icon">↕</span></th>
+        <th onclick="sortTable(4)" style="width:80px">Age <span class="sort-icon">↕</span></th>
+        <th onclick="sortTable(5)" style="width:100px">Status <span class="sort-icon">↕</span></th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+  <div class="no-results hidden" id="noResults">No articles match your filter.</div>
+</div>
+
+<div class="gaps-section">
+  <h3>Content gaps — articles that should exist</h3>
+  <div class="gap-item"><div class="gap-text">Veracity SSO login troubleshooting guide</div><div class="gap-count">27 bot queries, no article</div></div>
+  <div class="gap-item"><div class="gap-text">Workato access and connection troubleshooting</div><div class="gap-count">Multiple failed bot responses</div></div>
+  <div class="gap-item"><div class="gap-text">What the Ask IT bot can and cannot do</div><div class="gap-count">Common employee confusion</div></div>
+  <div class="gap-item"><div class="gap-text">Printer setup and troubleshooting guide</div><div class="gap-count">Mentioned repeatedly in queries</div></div>
+</div>
+
+<script>
+// Always use today's real date
+const TODAY = new Date();
+TODAY.setHours(0, 0, 0, 0);
+
+function daysSince(dateStr) {
+  return Math.floor((TODAY - new Date(dateStr)) / (1000 * 60 * 60 * 24));
+}
+function fmtDate(dateStr) {
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// ── Rule-based status suggestion ─────────────────────────────────────────────
+function suggestStatus(age, refs, folder) {
+  if (folder === 'Drafts') return ['draft', 'Not yet published.'];
+  if (age > 365 && refs === 0) return ['retire', 'Over a year old with no bot usage.'];
+  if (age > 180 && refs >= 10) return ['update', 'High usage but overdue for a refresh.'];
+  if (age > 180 && refs >= 5)  return ['update', 'Moderate usage; content may be stale.'];
+  if (age > 180 && refs === 0) return ['review', 'Old and unused — confirm still relevant.'];
+  if (age < 90  && refs >= 10) return ['active', 'Recently updated and frequently referenced.'];
+  if (age < 90)                return ['active', 'Recently updated, looks healthy.'];
+  return ['monitor', 'No urgent action needed; keep an eye on it.'];
+}
+
+const rawArticles = [
+  ['DECS Getting IT Support', 'Published', 163, '2025-12-04', 'critical'],
+  ['DECS PC MAC Browser Authentication Issue', 'Published', 39, '2026-03-26', 'active'],
+  ['DECS Connectivity Slowness Issue', 'Published', 37, '2026-01-21', 'active'],
+  ['DECS PC Configuration New Hires', 'Published', 26, '2026-03-31', 'active'],
+  ['DECS MAC Configuration New Hires', 'Published', 16, '2026-05-11', 'active'],
+  ['DECS iOS Android OktaVerify Device Support', 'Published', 25, '2026-02-19', 'active'],
+  ['DECS Zscaler FW AV Issue', 'Published', 22, '2026-03-13', 'active'],
+  ['DECS PC MAC DeviceAttestation Remediation', 'Published', 18, '2025-11-19', 'update'],
+  ['DECS Slack Set Up Cohesity OKTA and Slack on Mobile', 'Published', 17, '2025-11-05', 'update'],
+  ['DECS Network Zscaler Root Certificate Configuration', 'Published', 16, '2025-12-04', 'update'],
+  ['DECS PC Mac Performance Troubleshooting', 'Published', 15, '2026-03-13', 'active'],
+  ['DECS PC Mac Chrome Authentication Issue', 'Published', 15, '2025-12-04', 'update'],
+  ['DECS Cohesity MSFT MFA First Time Registration', 'Published', 15, '2025-11-05', 'update'],
+  ['DECS PC MAC Request Admin Rights', 'Published', 14, '2026-03-31', 'active'],
+  ['DECS PC MAC JIT Request Guide', 'Published', 10, '2026-01-27', 'monitor'],
+  ['DECS WiFi FAQ', 'Published', 8, '2025-11-24', 'monitor'],
+  ['DECS MAC PIM Install An Application', 'Published', 7, '2026-01-06', 'monitor'],
+  ['DECS PC Bitlocker Key', 'Published', 6, '2025-10-15', 'review'],
+  ['DECS PC Locked Out Bitlocker', 'Published', 5, '2025-10-15', 'review'],
+  ['DECS IT Accessories Guide', 'Published', 4, '2025-12-16', 'monitor'],
+  ['DECS Add Shared Delegated Mailbox Outlook', 'Published', 0, '2025-11-19', 'monitor'],
+  ['DECS MAC Configuration Reimages', 'Published', 0, '2026-05-11', 'monitor'],
+  ['DECS PC Reset Reimage Guide', 'Published', 0, '2025-09-01', 'monitor'],
+  ['DECS MAC Reimage Reinstall Instructions', 'Published', 0, '2026-04-02', 'monitor'],
+  ['DECS MAC Failed OS Update', 'Published', 0, '2026-03-31', 'monitor'],
+  ['DECS VDI Display Settings Guide', 'Published', 0, '2025-10-28', 'monitor'],
+  ['DECS MAC MacBook Not Powering On', 'Published', 0, '2026-03-13', 'monitor'],
+  ['DECS MAC Migrate From Cohesity 1.0 to 2.0', 'Published', 0, '2025-08-27', 'monitor'],
+  ['DECS Mobile Slack Sign In Guide', 'Published', 0, '2025-12-08', 'monitor'],
+  ['DECS How To Access Cohesity CloudPC Guide', 'Published', 0, '2026-03-12', 'monitor'],
+  ['DECS Slack Zoom to Slack Status Updater', 'Published', 0, '2025-11-05', 'monitor'],
+  ['DECS OneDrive External Sharing', 'Published', 0, '2025-12-05', 'monitor'],
+  ['DECS Zscaler Service Edge Error', 'Published', 0, '2026-02-16', 'monitor'],
+  ['DECS PC MAC Missing Okta Verify', 'Published', 0, '2026-03-12', 'monitor'],
+  ['DECS PC Veritas to Cohesity Reimage Guide', 'Published', 0, '2025-08-13', 'monitor'],
+  ['DECS OneDrive Run Sharing Report', 'Published', 0, '2025-12-05', 'monitor'],
+  ['DECS Slack Not Receiving Notifications Fix', 'Published', 0, '2025-11-05', 'monitor'],
+  ['DECS Slack Channels and Huddles Issues', 'Published', 0, '2025-11-05', 'monitor'],
+  ['DECS PC Cohesity Backup Assistant Tool', 'Published', 0, '2025-10-13', 'monitor'],
+  ['DECS OneDrive Unable to Break Role Inheritance', 'Published', 0, '2025-12-05', 'monitor'],
+  ['DECS Slack Mute App Notifications', 'Published', 0, '2025-11-05', 'monitor'],
+  ['IT Help and Support', 'Published', 0, '2026-05-11', 'monitor'],
+  ['DECS Resetting Okta Password Mobile Guide', 'Published', 0, '2026-05-15', 'monitor'],
+  ['DECS KMS Standards Guide', 'Drafts', 0, '2025-11-19', 'draft'],
+  ['DECS KMS Review Publishing Guide', 'Drafts', 0, '2025-11-19', 'draft'],
+  ['DECS Intern Knowledge Migration Plan', 'Drafts', 0, '2026-06-02', 'draft'],
+  ['Salesforce License Provisioning', 'IT Support Documentation', 0, '2025-04-14', 'retire'],
+  ['VDI Workspace FAQ', 'IT Support Documentation', 0, '2025-04-11', 'retire'],
+  ['Clari Access via Okta', 'IT Support Documentation', 0, '2025-04-14', 'retire'],
+  ['ITCS Generate a Code for BeyondTrust', 'IT Support Documentation', 0, '2025-05-07', 'retire'],
+];
+
+// [name, folder, refs, dateStr, status, age, fmtDate, isNew]
+const articles = rawArticles.map(a => a.concat([daysSince(a[3]), fmtDate(a[3]), false]));
+
+const statusLabels = { critical:'Critical', update:'Update', active:'Active', review:'Review', retire:'Retire', monitor:'Monitor', draft:'Draft' };
+
+let currentStatusFilter = null;
+let currentFolderFilter = null;
+let sortCol = 2;
+let sortDir = -1;
+let pendingArticle = null;
+
+function statusHtml(status) {
+  return `<span class="status-tag status-${status}">${statusLabels[status]}</span>`;
+}
+function ageHtml(days) {
+  const cls = days > 300 ? 'old' : days > 180 ? 'warn' : '';
+  return `<span class="age-text ${cls}">${days}d</span>`;
+}
+
+function renderTable() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const tbody  = document.getElementById('tableBody');
+  const noRes  = document.getElementById('noResults');
+
+  let rows = articles.filter(a => {
+    const matchSearch = !search || a[0].toLowerCase().includes(search) || a[1].toLowerCase().includes(search);
+    const matchStatus = !currentStatusFilter || a[4] === currentStatusFilter;
+    const matchFolder = !currentFolderFilter || a[1] === currentFolderFilter;
+    return matchSearch && matchStatus && matchFolder;
+  });
+
+  rows.sort((a, b) => {
+    let va = a[sortCol], vb = b[sortCol];
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    return va < vb ? -sortDir : va > vb ? sortDir : 0;
+  });
+
+  if (rows.length === 0) {
+    tbody.innerHTML = '';
+    noRes.classList.remove('hidden');
+    document.getElementById('articlesTable').classList.add('hidden');
+    return;
+  }
+
+  noRes.classList.add('hidden');
+  document.getElementById('articlesTable').classList.remove('hidden');
+
+  tbody.innerHTML = rows.map(a => `
+    <tr class="${a[7] ? 'new-row' : ''}">
+      <td><div class="article-name" title="${a[0]}">${a[0]}</div></td>
+      <td><span class="folder-tag">${a[1]}</span></td>
+      <td><span class="refs-num">${a[2]}</span></td>
+      <td style="font-size:11px;color:#888">${a[6]}</td>
+      <td>${ageHtml(a[5])}</td>
+      <td>${statusHtml(a[4])}</td>
+    </tr>`).join('');
+}
+
+// ── Add article ───────────────────────────────────────────────────────────────
+
+function addArticle() {
+  const name   = document.getElementById('addName').value.trim();
+  const folder = document.getElementById('addFolder').value;
+  const date   = document.getElementById('addDate').value;
+
+  if (!name || !date) {
+    alert('Please enter an article name and last-updated date.');
+    return;
+  }
+
+  const age = daysSince(date);
+  const [suggested, reason] = suggestStatus(age, 0, folder);
+
+  pendingArticle = { name, folder, dateStr: date, age, status: suggested };
+
+  document.getElementById('arName').textContent = name;
+  document.getElementById('arMeta').textContent = `${folder} · Updated ${fmtDate(date)} · ${age}d old`;
+  document.getElementById('arReason').textContent = reason;
+  document.getElementById('arStatusSelect').value = suggested;
+  document.getElementById('analyzeResult').classList.remove('hidden');
+}
+
+function confirmAdd() {
+  if (!pendingArticle) return;
+  const chosenStatus = document.getElementById('arStatusSelect').value;
+  articles.unshift([
+    pendingArticle.name,
+    pendingArticle.folder,
+    0,
+    pendingArticle.dateStr,
+    chosenStatus,
+    pendingArticle.age,
+    fmtDate(pendingArticle.dateStr),
+    true
+  ]);
+  dismissResult();
+  document.getElementById('addName').value = '';
+  document.getElementById('addDate').value = '';
+  renderTable();
+}
+
+function dismissResult() {
+  document.getElementById('analyzeResult').classList.add('hidden');
+  pendingArticle = null;
+}
+
+// ── Filters & sort ────────────────────────────────────────────────────────────
+
+let _searchTimer = null;
+function applyFilters() {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(renderTable, 150);
+}
+
+function filterByStatus(status) {
+  currentStatusFilter = currentStatusFilter === status ? null : status;
+  currentFolderFilter = null;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.summary-item').forEach(c => c.classList.remove('active-filter'));
+  if (currentStatusFilter) {
+    const card = document.getElementById('card-' + status);
+    if (card) card.classList.add('active-filter');
+  }
+  renderTable();
+}
+
+function filterByFolder(folder) {
+  currentFolderFilter = currentFolderFilter === folder ? null : folder;
+  currentStatusFilter = null;
+  document.querySelectorAll('.summary-item').forEach(c => c.classList.remove('active-filter'));
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  if (currentFolderFilter) {
+    const map = { 'Published':'btn-published', 'Drafts':'btn-drafts', 'IT Support Documentation':'btn-support' };
+    const btn = document.getElementById(map[folder]);
+    if (btn) btn.classList.add('active');
+  }
+  renderTable();
+}
+
+function clearFilters() {
+  currentStatusFilter = null;
+  currentFolderFilter = null;
+  document.getElementById('searchInput').value = '';
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.summary-item').forEach(c => c.classList.remove('active-filter'));
+  renderTable();
+}
+
+function sortTable(col) {
+  if (sortCol === col) { sortDir *= -1; }
+  else { sortCol = col; sortDir = col === 2 ? -1 : 1; }
+  renderTable();
+}
+
+renderTable();
+</script>
+</body>
+</html>
